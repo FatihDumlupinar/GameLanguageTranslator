@@ -1,6 +1,5 @@
-﻿using GameLanguageTranslator;
-using GameLanguageTranslator.Translate;
-using System.Text.RegularExpressions;
+﻿using GameLanguageTranslator.Selenium;
+using GameLanguageTranslator.Selenium.Base;
 using System.Xml;
 
 //Console.Write("Enter game directory path: ");
@@ -48,22 +47,12 @@ string[] xmlFilePaths = Directory.GetFiles(gameDirectoryPath, "*.xml", SearchOpt
 //            continue;
 //        }
 
-
 //    }
 
 //    Console.WriteLine($"Total chars count : {totalWordCount.ToString("#,##0")} ");
 //}
 
-
-//while (true)
-//{
-//    Console.Write("press 1 to continue : ");
-
-//    if (Console.ReadLine()?.Trim() == "1")
-//    {
-//        break;
-//    }
-//}
+//Console.ReadLine()
 
 //Console.Write("Enter source language code (e.g. en, fr, es): ");
 //string sourceLanguageCode = Console.ReadLine() ?? "";
@@ -71,11 +60,15 @@ string sourceLanguageCode = "en";
 
 //Console.Write("Enter target language code (e.g. tr, de, ja): ");
 //string targetLanguageCode = Console.ReadLine() ?? "";
-string targetLanguageCode = "";
+string targetLanguageCode = "tr";
 
-var Translator = new SeleniumBotTranslate(sourceLanguageCode, targetLanguageCode);
 //ITranslator Translator = new MicrosoftTranslateText();
 //ITranslator Translator = new GoogleTranslateText();
+
+//using IBaseSelenium seleniumBot = new GoogleTranslateSeleniumBot();
+//using IBaseSelenium seleniumBot = new BingTranslateSeleniumBot();
+//using IBaseSelenium seleniumBot = new YandexTranslateSeleniumBot();
+using IBaseSelenium seleniumBot = new DeeplTranslateSeleniumBot();
 
 for (int i = 0; i < xmlFilePaths.Length; i++)
 {
@@ -85,7 +78,6 @@ for (int i = 0; i < xmlFilePaths.Length; i++)
     xmlDoc.Load(xmlFilePath);
 
     XmlNodeList rowNodes = xmlDoc.SelectNodes("//Row");
-
 
     if (rowNodes != null)
     {
@@ -100,20 +92,7 @@ for (int i = 0; i < xmlFilePaths.Length; i++)
                 {
                     string englishText = rowNode.SelectSingleNode("Text").InnerText;
 
-                    //string translatedText = await Translator.TranslateTextAsync(englishText, sourceLanguageCode, targetLanguageCode);
-
-                    string[] sentences = Regex.Split(englishText, @"(?<=[\.!\?])\s+");
-
-                    for (int h = 0; h < sentences.Length; h++)
-                    {
-                        string sentence = sentences[h];
-
-                        string translatedSentence = await Translator.TranslateTextAsync(sentence);
-
-                        sentences[h] = translatedSentence;
-                    }
-
-                    string translatedText = string.Join(" ", sentences);
+                    string translatedText = await seleniumBot.TranslateTextAsync(englishText, sourceLanguageCode, targetLanguageCode);
 
                     Console.Clear();
                     Console.WriteLine($"Completed : {xmlFilePaths.Length}/{(i + 1)} ");
@@ -135,6 +114,7 @@ for (int i = 0; i < xmlFilePaths.Length; i++)
             }
 
             xmlDoc.Save(xmlFilePath);
+            seleniumBot.Dispose();
         }
 
     }
