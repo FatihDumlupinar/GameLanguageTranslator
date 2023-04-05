@@ -1,38 +1,61 @@
 ﻿using GameLanguageTranslator.Selenium.Base;
+using GameLanguageTranslator.Utilities;
 using OpenQA.Selenium;
-using OpenQA.Selenium.Chrome;
 using SeleniumExtras.WaitHelpers;
 using System.Net;
+using System.Text.RegularExpressions;
 
-namespace GameLanguageTranslator.Selenium
+namespace GameLanguageTranslator.Selenium;
+
+public class GoogleTranslateSeleniumBot : BaseSelenium
 {
-    public class GoogleTranslateSeleniumBot : BaseSelenium
+    private readonly TranslationFromDatabase translationFromDatabase = TranslationFromDatabase.Instance;
+
+    public override async Task<string> TranslateTextAsync(string text, string sourceLanguageCode = "en", string targetLanguageCode = "tr")
     {
-        public override ChromeOptions GetChromeOptions()
+        try
         {
-            var options = base.GetChromeOptions();
+            text = text.TrimStart().TrimEnd();
 
-            //tarayıcının sandbox özelliğini devre dışı bırakır. Sandbox, tarayıcının web sayfalarından gelen zararlı kodları tespit edip engellemesine yardımcı olan bir güvenlik özelliğidir. Ancak, bazı durumlarda sandbox, tarayıcının performansını düşürebilir.
-            options.AddArgument("--no-sandbox");
-
-            //Chrome'un sayfaları güvenli olup olmadığı konusunda uyarılar göstermesini sağlar. Eğer senaryonun güvenlik uyarılarına ihtiyacı yoksa bu özellik gereksiz olabilir.
-            options.AddArgument("--safebrowsing-enabled");
-
-            //Bu seçenek, popup engelleyicisinin devre dışı bırakılmasını sağlar.
-            options.AddArgument("--disable-popup-blocking");
-
-            return options;
-        }
-
-        public override async Task<string> TranslateTextAsync(string text, string sourceLanguageCode = "en", string targetLanguageCode = "tr")
-        {
-            if (text.Length <= 150 && cache.TryGet(text.ToLower(), out string? cachedTranslation))
+            //veritabanında varsa direkt geriye döndür
+            var translatedText = await translationFromDatabase.GetTranslationFromDatabaseAsync(text, sourceLanguageCode, targetLanguageCode);
+            if (!string.IsNullOrEmpty(translatedText))
             {
-                if (!string.IsNullOrEmpty(cachedTranslation))
-                {
-                    return cachedTranslation;
-                }
+                return translatedText;
             }
+
+            //tam tersine bak(çevrilmiş bir kelime ise)
+            var searchInTranslatedWords = await translationFromDatabase.SearchInTranslatedWordsFromDatabaseAsync(text, sourceLanguageCode, targetLanguageCode);
+            if (!string.IsNullOrEmpty(searchInTranslatedWords))
+            {
+                return searchInTranslatedWords;
+            }
+
+            //cümlelere ayır
+            int sentencesCount = Regex.Split(text, @"(?<=[\.!\?])\s+").Length;
+            //var sentences = Regex.Split(text, @"(?<=[\.!\?])\s+");
+
+            int randomNumber = rnd.Next(1000, 2001);
+
+            await Task.Delay(randomNumber);
+
+            var dictionary = new Dictionary<string, string>();
+
+            // Özel kelimeleri bul ve değiştir
+            text = Regex.Replace(text, @"({.*?}|\[.*?\])", match =>
+            {
+                string key = match.Value;
+                if (!dictionary.ContainsKey(key))
+                {
+                    // Rastgele bir 6 karakterli dize oluşturun
+                    string randomString = GenerateRandomString();
+                    dictionary.Add(key, randomString);
+                }
+
+                // Özel kelimeyi rastgele dizeyle değiştirin
+                return dictionary[key];
+            });
+
 
             _driver.Url = $"https://translate.google.com/?sl={sourceLanguageCode}&tl={targetLanguageCode}&text={WebUtility.UrlEncode(text)}";
 
@@ -46,22 +69,61 @@ namespace GameLanguageTranslator.Selenium
                 isNotPageLoaded = !(bool)javascriptExecutor.ExecuteScript("return document.readyState === 'complete'");
             }
 
-            //her seferinde bekleme süresini değiştir
-            int randomNumber = rnd.Next(1000, 2001);
+            randomNumber = rnd.Next(1000, 2001);
 
             await Task.Delay(randomNumber);
 
-            var result = _wait.Until(ExpectedConditions.ElementIsVisible(By.XPath("//span[starts-with(@jsname,'W')]")));
+            // Sayfayı en altına kaydırın, böylece tüm span'lar yüklenir.
+            javascriptExecutor.ExecuteScript("window.scrollTo(0, document.body.scrollHeight);");
 
-            var translatedText = result.Text;
+            // Tüm span'ları XPath ifadesiyle seçin.
+            var elements = _wait.Until(ExpectedConditions.VisibilityOfAllElementsLocatedBy(By.XPath("//span[starts-with(@jsname,'W') and contains(@class, 'ryNqvb')]")));
 
-            //150 karakter sonrasını cache atma
-            if (text.Length <= 150)
+            // Tüm span'ların içeriğini birleştirin.
+            foreach (var element in elements)
             {
-                cache.Add(text.ToLower(), translatedText);
+                translatedText = translatedText + " " + element.Text;
             }
+
+            translatedText = translatedText.TrimStart().TrimEnd();
+
+            int translatedTextSentencesCount = Regex.Split(translatedText, @"(?<=[\.!\?])\s+").Length;
+            //var translatedTextSentences = Regex.Split(translatedText, @"(?<=[\.!\?])\s+");
+
+            if (sentencesCount > translatedTextSentencesCount)
+            {
+                throw new Exception("Çeviriler aynı değil!");
+            }
+
+            //özel kelimleri yerine geri koyuyor
+            foreach (var item in dictionary)
+            {
+                text = text.Replace(item.Value, item.Key);
+            }
+
+            foreach (var item in dictionary)
+            {
+                translatedText = translatedText.Replace(item.Value, item.Key);
+            }
+
+            //veritabanına ekle çeviriyi
+            await translationFromDatabase.AddTranslationToDatabaseAsync(text, sourceLanguageCode, targetLanguageCode, translatedText);
 
             return translatedText;
         }
+        catch (Exception e)
+        {
+
+            throw;
+        }
     }
+
+    public static string GenerateRandomString()
+    {
+        var random = new Random();
+        const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        return new string(Enumerable.Repeat(chars, 6)
+            .Select(s => s[random.Next(s.Length)]).ToArray());
+    }
+
 }

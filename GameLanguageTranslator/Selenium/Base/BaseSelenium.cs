@@ -1,5 +1,4 @@
-﻿using GameLanguageTranslator.Utilities;
-using OpenQA.Selenium;
+﻿using OpenQA.Selenium;
 using OpenQA.Selenium.Chrome;
 using OpenQA.Selenium.Support.UI;
 
@@ -7,35 +6,28 @@ namespace GameLanguageTranslator.Selenium.Base;
 
 public abstract class BaseSelenium : IBaseSelenium
 {
-    protected static IWebDriver? _driver;
-    protected static WebDriverWait? _wait;
+    protected static IWebDriver? _driver = new ChromeDriver(GetChromeOptions());
+    protected static WebDriverWait? _wait = new WebDriverWait(_driver, TimeSpan.FromSeconds(10));
 
-    //aynı cümleleri tekrar çevirmemesi için
-    protected static LRUCache<string, string> cache = new(100);
-
-    protected static readonly Random rnd = new();
-
-    public BaseSelenium()
-    {
-        if (_driver is null)
-        {
-            _driver = new ChromeDriver(GetChromeOptions());
-        }
-
-        if (_wait is null && _driver is not null)
-        {
-            _wait = new(_driver, TimeSpan.FromSeconds(10));
-        }
-    }
+    protected static Random rnd = new();
 
     public abstract Task<string> TranslateTextAsync(string text, string sourceLanguageCode = "en", string targetLanguageCode = "tr");
 
-    public virtual ChromeOptions GetChromeOptions()
+    public static ChromeOptions GetChromeOptions()
     {
         var options = new ChromeOptions();
 
         // tarayıcının headless modda çalışmasını sağlar, bu sayede tarayıcının arayüzü olmadan çalışır ve performans artırılır.
-        //options.AddArgument("--headless");
+        options.AddArgument("--headless");
+
+        //tarayıcının sandbox özelliğini devre dışı bırakır. Sandbox, tarayıcının web sayfalarından gelen zararlı kodları tespit edip engellemesine yardımcı olan bir güvenlik özelliğidir. Ancak, bazı durumlarda sandbox, tarayıcının performansını düşürebilir.
+        options.AddArgument("--no-sandbox");
+
+        //Chrome'un sayfaları güvenli olup olmadığı konusunda uyarılar göstermesini sağlar. Eğer senaryonun güvenlik uyarılarına ihtiyacı yoksa bu özellik gereksiz olabilir.
+        options.AddArgument("--safebrowsing-enabled");
+
+        //Bu seçenek, popup engelleyicisinin devre dışı bırakılmasını sağlar.
+        options.AddArgument("--disable-popup-blocking");
 
         //bot olmadığımızı göstermek için :)
         options.AddArgument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.5563.111 Safari/537.36");
@@ -87,6 +79,6 @@ public abstract class BaseSelenium : IBaseSelenium
         Quit();
         _driver = null!;
         _wait = null!;
-        cache = null!;
+        rnd = null!;
     }
 }

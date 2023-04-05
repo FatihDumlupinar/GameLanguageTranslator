@@ -1,58 +1,55 @@
 ﻿using GameLanguageTranslator.Selenium;
 using GameLanguageTranslator.Selenium.Base;
+using System.Text.RegularExpressions;
 using System.Xml;
 
 //Console.Write("Enter game directory path: ");
 //string gameDirectoryPath = Console.ReadLine() ?? "" ;
-string gameDirectoryPath = "C:\\Users\\fatih\\Desktop\\Yeni klasör (2)";
+string gameDirectoryPath = @"D:\SteamLibrary\steamapps\common\Sid Meier's Civilization VI";
+string backupFolderPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop), "Sid Meier's Civilization VI");
 
-if (!Directory.Exists(gameDirectoryPath))
+if (!Directory.Exists(backupFolderPath))
 {
-    Console.WriteLine("Game directory not exist!");
-    return;
+    Directory.CreateDirectory(backupFolderPath);
 }
 
 string[] xmlFilePaths = Directory.GetFiles(gameDirectoryPath, "*.xml", SearchOption.AllDirectories);
 
-//Console.Write("Calculate chars count? (yes/no): ");
+foreach (string xmlFilePath in xmlFilePaths)
+{
+    try
+    {
+        string xml = File.ReadAllText(xmlFilePath);
+        xml = xml.Replace("version=\"2.0\"", "version=\"1.0\"");
+        XmlDocument xmlDoc = new XmlDocument();
+        xmlDoc.LoadXml(xml);
 
-//if (Console.ReadLine()?.ToLower().Trim() == "yes")
-//{
-//    Console.Write("chars counting...");
+        if (xmlDoc.SelectSingleNode("//BaseGameText") != null || xmlDoc.SelectSingleNode("//EnglishText") != null)
+        {
+            string relativePath = xmlFilePath.Substring(gameDirectoryPath.Length + 1);
+            string backupFilePath = Path.Combine(backupFolderPath, relativePath);
 
-//    int totalWordCount = 0;
-//    string text = "";
+            string backupDirectoryPath = Path.GetDirectoryName(backupFilePath) ?? "";
 
-//    foreach (string file in xmlFilePaths)
-//    {
-//        try
-//        {
-//            XmlDocument doc = new XmlDocument();
+            if (!Directory.Exists(backupDirectoryPath))
+            {
+                Directory.CreateDirectory(backupDirectoryPath);
+            }
 
-//            doc.Load(file);
+            File.Copy(xmlFilePath, backupFilePath, true);
+            Console.WriteLine($"Backed up: {backupFilePath}");
+        }
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Error found: {ex.Message} \n\n File Path: {xmlFilePath}");
+    }
+}
 
-//            XmlNodeList textNodes = doc.SelectNodes("//Text");
+Console.WriteLine("All XML files are backed up.");
 
-//            if (textNodes != null)
-//            {
-//                foreach (XmlNode textNode in textNodes)
-//                {
-//                    text = textNode.InnerText;
-//                    totalWordCount += text.Length;
-//                }
-//            }
-//        }
-//        catch
-//        {
-//            continue;
-//        }
-
-//    }
-
-//    Console.WriteLine($"Total chars count : {totalWordCount.ToString("#,##0")} ");
-//}
-
-//Console.ReadLine()
+//xml dosyalarını artık yedeklenen klasorden alacak
+xmlFilePaths = Directory.GetFiles(backupFolderPath, "*.xml", SearchOption.AllDirectories);
 
 //Console.Write("Enter source language code (e.g. en, fr, es): ");
 //string sourceLanguageCode = Console.ReadLine() ?? "";
@@ -62,13 +59,7 @@ string sourceLanguageCode = "en";
 //string targetLanguageCode = Console.ReadLine() ?? "";
 string targetLanguageCode = "tr";
 
-//ITranslator Translator = new MicrosoftTranslateText();
-//ITranslator Translator = new GoogleTranslateText();
-
-//using IBaseSelenium seleniumBot = new GoogleTranslateSeleniumBot();
-//using IBaseSelenium seleniumBot = new BingTranslateSeleniumBot();
-//using IBaseSelenium seleniumBot = new YandexTranslateSeleniumBot();
-using IBaseSelenium seleniumBot = new DeeplTranslateSeleniumBot();
+using IBaseSelenium seleniumBot = new GoogleTranslateSeleniumBot();
 
 for (int i = 0; i < xmlFilePaths.Length; i++)
 {
@@ -92,6 +83,11 @@ for (int i = 0; i < xmlFilePaths.Length; i++)
                 {
                     string englishText = rowNode.SelectSingleNode("Text").InnerText;
 
+                    if (IsTurkish(englishText))
+                    {
+                        continue;
+                    }
+
                     string translatedText = await seleniumBot.TranslateTextAsync(englishText, sourceLanguageCode, targetLanguageCode);
 
                     Console.Clear();
@@ -100,21 +96,12 @@ for (int i = 0; i < xmlFilePaths.Length; i++)
                     Console.WriteLine($"Text : {englishText} ");
                     Console.WriteLine($"Translated : {translatedText} ");
 
-                    using var file = new StreamWriter("C:\\Users\\fatih\\Desktop\\Yeni Metin Belgesi.txt", true);
-
-                    file.WriteLine($"Completed : {xmlFilePaths.Length}/{(i + 1)} ");
-                    file.WriteLine($"File Name : {Path.GetFileName(xmlFilePath)} ");
-                    file.WriteLine($"Text : {englishText} ");
-                    file.WriteLine($"Translated : {translatedText} ");
-
-                    file.Close();
-
                     rowNode.SelectSingleNode("Text").InnerText = translatedText;
                 }
             }
 
             xmlDoc.Save(xmlFilePath);
-            seleniumBot.Dispose();
+
         }
 
     }
@@ -123,3 +110,13 @@ for (int i = 0; i < xmlFilePaths.Length; i++)
 
 Console.WriteLine("Translation complete.");
 
+static bool IsTurkish(string text)
+{
+    // Check if the sentence contains Turkish characters
+    if (Regex.IsMatch(text, @"[ğüşıöçĞÜŞİÖÇ]"))
+    {
+        return true;
+    }
+
+    return false;
+}
