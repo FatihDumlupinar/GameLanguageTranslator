@@ -3,9 +3,9 @@ using GameLanguageTranslator.Selenium.Base;
 using System.Text.RegularExpressions;
 using System.Xml;
 
-//Console.Write("Enter game directory path: ");
-//string gameDirectoryPath = Console.ReadLine() ?? "" ;
-string gameDirectoryPath = @"D:\SteamLibrary\steamapps\common\Sid Meier's Civilization VI";
+Console.Write("Enter game directory path: ");
+string gameDirectoryPath = Console.ReadLine() ?? "";
+//string gameDirectoryPath = @"D:\SteamLibrary\steamapps\common\Sid Meier's Civilization VI";
 string backupFolderPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop), "Sid Meier's Civilization VI");
 
 if (!Directory.Exists(backupFolderPath))
@@ -51,13 +51,13 @@ Console.WriteLine("All XML files are backed up.");
 //xml dosyalarını artık yedeklenen klasorden alacak
 xmlFilePaths = Directory.GetFiles(backupFolderPath, "*.xml", SearchOption.AllDirectories);
 
-//Console.Write("Enter source language code (e.g. en, fr, es): ");
-//string sourceLanguageCode = Console.ReadLine() ?? "";
-string sourceLanguageCode = "en";
+Console.Write("Enter source language code (e.g. en, fr, es): ");
+string sourceLanguageCode = Console.ReadLine() ?? "";
+//string sourceLanguageCode = "en";
 
-//Console.Write("Enter target language code (e.g. tr, de, ja): ");
-//string targetLanguageCode = Console.ReadLine() ?? "";
-string targetLanguageCode = "tr";
+Console.Write("Enter target language code (e.g. tr, de, ja): ");
+string targetLanguageCode = Console.ReadLine() ?? "";
+//string targetLanguageCode = "tr";
 
 using IBaseSelenium seleniumBot = new GoogleTranslateSeleniumBot();
 
